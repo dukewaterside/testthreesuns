@@ -84,6 +84,7 @@ struct MaintenanceReportsListView: View {
             }
             .sheet(isPresented: $showingCreateReport) {
                 CreateMaintenanceReportView()
+                    .interactiveDismissDisabled(true)
             }
             .refreshable {
                 await viewModel.loadData()

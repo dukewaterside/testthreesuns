@@ -68,12 +68,15 @@ struct PropertyChecklistSelectionView: View {
             .navigationTitle("Select Property")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(item: $selectedProperty) { property in
-                if let checklist = checklists.first(where: { $0.propertyId == property.id && !$0.isCompleted }) {
-                    CleaningChecklistView(checklist: checklist)
-                } else {
-                    // Show empty checklist for this property
-                    EmptyCleaningChecklistView(property: property)
+                Group {
+                    if let checklist = checklists.first(where: { $0.propertyId == property.id && !$0.isCompleted }) {
+                        CleaningChecklistView(checklist: checklist)
+                    } else {
+                        // Show empty checklist for this property
+                        EmptyCleaningChecklistView(property: property)
+                    }
                 }
+                .interactiveDismissDisabled(true)
             }
             .task {
                 await viewModel.loadData()

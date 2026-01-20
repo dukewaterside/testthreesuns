@@ -164,19 +164,22 @@ struct MaintenanceChecklistView: View {
         .navigationTitle("Maintenance Checklist")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $presentedSheet) { sheet in
-            switch sheet {
-            case .createReport:
-                CreateMaintenanceReportView()
-            case .createTask:
-                CreateRecurringTaskView(
-                    propertyId: checklist.propertyId,
-                    onTaskCreated: {
-                        Task {
-                            await loadTasks()
+            Group {
+                switch sheet {
+                case .createReport:
+                    CreateMaintenanceReportView()
+                case .createTask:
+                    CreateRecurringTaskView(
+                        propertyId: checklist.propertyId,
+                        onTaskCreated: {
+                            Task {
+                                await loadTasks()
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
+            .interactiveDismissDisabled(true)
         }
         .alert("Checklist Completed", isPresented: $showSuccessAlert) {
             Button("OK") {

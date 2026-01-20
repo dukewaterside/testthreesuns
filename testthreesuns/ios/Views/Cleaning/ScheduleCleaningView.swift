@@ -161,6 +161,7 @@ struct ScheduleCleaningView: View {
                             selectedReservation = nil
                         }
                     )
+                    .interactiveDismissDisabled(true)
                 }
             }
             .alert("Cleaning Scheduled", isPresented: $showingSuccessAlert) {
@@ -171,6 +172,7 @@ struct ScheduleCleaningView: View {
                 Text("Your cleaning has been successfully scheduled.")
             }
         }
+        .interactiveDismissDisabled(true)
     }
     
     private func previousCheckout(for reservation: Reservation) -> Date? {

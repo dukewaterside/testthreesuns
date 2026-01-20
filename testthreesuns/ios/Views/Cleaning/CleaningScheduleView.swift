@@ -124,6 +124,7 @@ struct CleaningDetailView: View {
                     onUpdate?()
                 }
             }
+            .interactiveDismissDisabled(true)
         }
         .sheet(isPresented: $showingEditSchedule) {
             EditCleaningScheduleView(cleaning: currentCleaning) {
@@ -133,6 +134,7 @@ struct CleaningDetailView: View {
                     onUpdate?()
                 }
             }
+            .interactiveDismissDisabled(true)
         }
         .task {
             await viewModel.loadProperties()

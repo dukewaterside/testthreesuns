@@ -185,7 +185,6 @@ struct ReservationCardWithChecklistButton: View {
     let reservation: Reservation
     let propertyName: String?
     @ObservedObject var viewModel: DashboardViewModel
-    @State private var showingChecklist = false
     @State private var selectedProperty: Property?
     
     var isPastCheckout: Bool {
@@ -234,9 +233,18 @@ struct ReservationCardWithChecklistButton: View {
                         }
                         
                         Button(action: {
-                            // Find the property for this reservation
-                            selectedProperty = viewModel.properties.first { $0.id == reservation.propertyId }
-                            showingChecklist = true
+                            // Ensure we have the property loaded before presenting the sheet
+                            if let property = viewModel.properties.first(where: { $0.id == reservation.propertyId }) {
+                                selectedProperty = property
+                            } else {
+                                Task {
+                                    // Load data if needed, then try again
+                                    await viewModel.loadData()
+                                    if let property = viewModel.properties.first(where: { $0.id == reservation.propertyId }) {
+                                        selectedProperty = property
+                                    }
+                                }
+                            }
                         }) {
                             Text("Complete Checklist")
                                 .font(.headline)
@@ -264,18 +272,17 @@ struct ReservationCardWithChecklistButton: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(12)
-        .sheet(isPresented: $showingChecklist) {
-            if let property = selectedProperty {
-                ManagerChecklistTypesView(
-                    property: property,
-                    checklists: viewModel.checklists.filter { $0.propertyId == property.id },
-                    onChecklistCompleted: {
-                        Task {
-                            await viewModel.loadData()
-                        }
+        .sheet(item: $selectedProperty) { property in
+            ManagerChecklistTypesView(
+                property: property,
+                checklists: viewModel.checklists.filter { $0.propertyId == property.id },
+                onChecklistCompleted: {
+                    Task {
+                        await viewModel.loadData()
                     }
-                )
-            }
+                }
+            )
+            .interactiveDismissDisabled(true)
         }
         .onAppear {
             // Load checklists when view appears

@@ -122,6 +122,7 @@ struct CleanerQuickActionsView: View {
         }
         .sheet(isPresented: $showingPropertySelection) {
             PropertyChecklistSelectionView()
+                .interactiveDismissDisabled(true)
         }
     }
 }
@@ -388,8 +389,10 @@ struct ActiveCleaningCard: View {
         .sheet(isPresented: $showingChecklist) {
             if let checklist = checklist {
                 CleaningChecklistView(checklist: checklist, cleaningSchedule: cleaning)
+                    .interactiveDismissDisabled(true)
             } else {
                 Text("Loading checklist...")
+                    .interactiveDismissDisabled(true)
             }
         }
     }
@@ -440,6 +443,7 @@ struct ScheduleCleaningButton: View {
         }
         .sheet(isPresented: $showingScheduleView) {
             ScheduleCleaningView()
+                .interactiveDismissDisabled(true)
         }
     }
 }

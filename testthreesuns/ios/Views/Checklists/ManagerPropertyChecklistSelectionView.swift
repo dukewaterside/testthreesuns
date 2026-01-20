@@ -72,6 +72,7 @@ struct ManagerPropertyChecklistSelectionView: View {
                         }
                     }
                 )
+                .interactiveDismissDisabled(true)
             }
             .task {
                 await viewModel.loadData()
