@@ -9,9 +9,10 @@ struct ManagerDashboardView: View {
         ScrollView {
             VStack(spacing: 0) {
                 // Welcome Section
-                ManagerWelcomeSection(
+                DashboardHeaderView(
                     firstName: authViewModel.userProfile?.firstName ?? "User",
-                    role: authViewModel.userProfile?.role ?? .propertyManager
+                    role: authViewModel.userProfile?.role ?? .propertyManager,
+                    viewModel: viewModel
                 )
                 
                 // Content Section
@@ -36,53 +37,6 @@ struct ManagerDashboardView: View {
                 await viewModel.loadChecklists()
             }
         }
-    }
-}
-
-struct ManagerWelcomeSection: View {
-    let firstName: String
-    let role: UserProfile.UserRole
-    
-    var body: some View {
-        ZStack {
-            // Background gradient - using Primary Color 1 from style guide
-            LinearGradient(
-                colors: [.brandPrimary, .brandPrimary.opacity(0.8)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            
-            // Content
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Welcome back,")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.9))
-                    
-                    Text(firstName)
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    Text(role.displayName)
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.9))
-                }
-                
-                Spacer()
-                
-                Image("threesuns")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 96, height: 96)
-                    .accessibilityLabel("Three Suns")
-            }
-            .padding(.horizontal)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 200)
-        .padding(.top, 0)
-        .padding(.bottom, 24)
-        .ignoresSafeArea(edges: .top)
     }
 }
 

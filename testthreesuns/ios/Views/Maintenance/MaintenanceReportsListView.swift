@@ -7,6 +7,23 @@ struct MaintenanceReportsListView: View {
     @State private var selectedPropertyId: UUID?
     @State private var showCompleted = false
     
+    private func severityBackground(for report: MaintenanceReport) -> Color {
+        // If completed, use green background to indicate it's done
+        if report.status == .resolved {
+            return .completedBackground
+        }
+        
+        // Otherwise use severity-based color
+        switch report.severity {
+        case .low:
+            return .checkInBackground
+        case .medium:
+            return .checkOutBackground
+        case .high, .urgent:
+            return .repairedBackground
+        }
+    }
+    
     var pendingReports: [MaintenanceReport] {
         var reports = viewModel.reports.filter { $0.status == .reported }
         
@@ -147,6 +164,9 @@ struct MaintenanceReportsListView: View {
                                                 propertyName: viewModel.propertyName(for: report.propertyId),
                                                 reporterName: viewModel.reporterName(for: report.reporterId)
                                             )
+                                            .padding(8)
+                                            .background(severityBackground(for: report))
+                                            .cornerRadius(16)
                                         }
                                         .buttonStyle(.plain)
                                         .padding(.horizontal)
@@ -168,6 +188,9 @@ struct MaintenanceReportsListView: View {
                                                             propertyName: viewModel.propertyName(for: report.propertyId),
                                                             reporterName: viewModel.reporterName(for: report.reporterId)
                                                         )
+                                                        .padding(8)
+                                                        .background(severityBackground(for: report))
+                                                        .cornerRadius(16)
                                                     }
                                                     .buttonStyle(.plain)
                                                     .padding(.horizontal)

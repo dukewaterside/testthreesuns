@@ -9,13 +9,22 @@ struct CleanerDashboardView: View {
         ScrollView {
             VStack(spacing: 0) {
                 // Welcome Section
-                CleanerWelcomeSection(
+                DashboardHeaderView(
                     firstName: authViewModel.userProfile?.firstName ?? "User",
-                    role: authViewModel.userProfile?.role ?? .cleaningStaff
+                    role: authViewModel.userProfile?.role ?? .cleaningStaff,
+                    viewModel: viewModel
                 )
                 
                 // Content Section
                 VStack(spacing: 20) {
+                    // Urgent cleaning banner - show if there are urgent cleanings needed within 24 hours
+                    if !viewModel.urgentCleaningsNeeded.isEmpty {
+                        UrgentCleaningBanner(
+                            reservations: viewModel.urgentCleaningsNeeded,
+                            viewModel: viewModel
+                        )
+                    }
+                    
                     CleanerQuickActionsView(viewModel: viewModel)
                     
                     UpcomingCleaningsSection(viewModel: viewModel)
@@ -31,53 +40,6 @@ struct CleanerDashboardView: View {
         .task {
             await viewModel.loadData()
         }
-    }
-}
-
-struct CleanerWelcomeSection: View {
-    let firstName: String
-    let role: UserProfile.UserRole
-    
-    var body: some View {
-        ZStack {
-            // Background gradient - using Primary Color 1 from style guide
-            LinearGradient(
-                colors: [.brandPrimary, .brandPrimary.opacity(0.8)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            
-            // Content
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Welcome back,")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.9))
-                    
-                    Text(firstName)
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    Text(role.displayName)
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.9))
-                }
-                
-                Spacer()
-                
-                Image("threesuns")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 96, height: 96)
-                    .accessibilityLabel("Three Suns")
-            }
-            .padding(.horizontal)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 200)
-        .padding(.top, 0)
-        .padding(.bottom, 24)
-        .ignoresSafeArea(edges: .top)
     }
 }
 
@@ -788,6 +750,88 @@ struct UpcomingCleaningCard: View {
                 checklistError = "No cleaning checklist found for this cleaning schedule. The checklist may not have been created yet."
             }
             isLoadingChecklist = false
+        }
+    }
+}
+
+struct UrgentCleaningBanner: View {
+    let reservations: [Reservation]
+    @ObservedObject var viewModel: DashboardViewModel
+    @State private var selectedReservation: Reservation?
+    @State private var showingScheduleView = false
+    
+    private var nextReservation: Reservation? {
+        reservations.sorted { $0.checkIn < $1.checkIn }.first
+    }
+    
+    var body: some View {
+        NavigationLink(destination: CleaningsNeedingSchedulingView(viewModel: viewModel)) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.title2)
+                        .foregroundColor(.orange)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Urgent: Cleaning Needed")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        if let reservation = nextReservation {
+                            let propertyName = viewModel.propertyName(for: reservation) ?? "Upcoming check-in"
+                            Text("Next: \(propertyName)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            Text("\(reservation.checkIn, style: .date) at \(reservation.checkIn, style: .time) • in \(timeUntilCheckIn(reservation.checkIn))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    HStack(spacing: 4) {
+                        Text("Schedule")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.orange)
+                    .cornerRadius(8)
+                }
+                
+                if reservations.count > 1 {
+                    Text("+ \(reservations.count - 1) more within 24 hours")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+            .background(Color.orange.opacity(0.15))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.orange.opacity(0.5), lineWidth: 1)
+            )
+            .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func timeUntilCheckIn(_ checkIn: Date) -> String {
+        let now = Date()
+        let timeInterval = checkIn.timeIntervalSince(now)
+        
+        if timeInterval < 3600 { // Less than 1 hour
+            let minutes = Int(timeInterval / 60)
+            return "\(minutes) minute\(minutes == 1 ? "" : "s")"
+        } else {
+            let hours = Int(timeInterval / 3600)
+            return "\(hours) hour\(hours == 1 ? "" : "s")"
         }
     }
 }

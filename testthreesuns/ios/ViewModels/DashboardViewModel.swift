@@ -116,6 +116,54 @@ class DashboardViewModel: ObservableObject {
         notifications.sorted { $0.sentAt > $1.sentAt }
     }
     
+    // Reservations with check-ins within 24 hours that need cleaning scheduled
+    var urgentCleaningsNeeded: [Reservation] {
+        let now = Date()
+        let twentyFourHoursFromNow = Calendar.current.date(byAdding: .hour, value: 24, to: now)!
+        
+        // Get all confirmed reservations with check-ins within 24 hours
+        let upcomingReservations = reservations
+            .filter { 
+                $0.status == .confirmed && 
+                $0.checkIn >= now && 
+                $0.checkIn <= twentyFourHoursFromNow
+            }
+        
+        // Get all scheduled/completed cleaning reservation IDs
+        let scheduledOrCompletedCleaningReservationIds = Set(cleaningSchedules
+            .filter { 
+                $0.status == .scheduled || $0.status == .completed || $0.status == .inProgress
+            }
+            .compactMap { $0.reservationId })
+        
+        // Find reservations that DON'T have a cleaning scheduled or completed
+        return upcomingReservations
+            .filter { !scheduledOrCompletedCleaningReservationIds.contains($0.id) }
+            .sorted { $0.checkIn < $1.checkIn }
+    }
+    
+    // Next upcoming reservation that needs cleaning scheduled (for banner display)
+    var nextCleaningNeedingScheduling: Reservation? {
+        let now = Date()
+        
+        // Get all confirmed upcoming reservations
+        let upcomingReservations = reservations
+            .filter { $0.status == .confirmed && $0.checkIn >= now }
+        
+        // Get all scheduled/completed cleaning reservation IDs
+        let scheduledOrCompletedCleaningReservationIds = Set(cleaningSchedules
+            .filter { 
+                $0.status == .scheduled || $0.status == .completed || $0.status == .inProgress
+            }
+            .compactMap { $0.reservationId })
+        
+        // Find the next reservation that doesn't have a cleaning scheduled
+        return upcomingReservations
+            .filter { !scheduledOrCompletedCleaningReservationIds.contains($0.id) }
+            .sorted { $0.checkIn < $1.checkIn }
+            .first
+    }
+    
     func loadData() async {
         isLoading = true
         await loadProperties()
@@ -163,6 +211,13 @@ class DashboardViewModel: ObservableObject {
     
     func reporterName(for reporterId: UUID) -> String? {
         reporterNameMap[reporterId]
+    }
+    
+    func cleaningForReservation(_ reservation: Reservation) -> CleaningSchedule? {
+        cleaningSchedules
+            .filter { $0.reservationId == reservation.id }
+            .sorted { $0.scheduledStart < $1.scheduledStart }
+            .first
     }
     
     private func loadProfiles() async {

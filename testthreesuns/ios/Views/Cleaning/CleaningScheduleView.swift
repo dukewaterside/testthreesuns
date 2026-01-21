@@ -6,6 +6,7 @@ import Functions
 struct CleaningScheduleView: View {
     @StateObject private var viewModel = CleaningViewModel()
     @State private var selectedStatus: CleaningSchedule.CleaningStatus?
+    @State private var showingScheduleSheet = false
     
     var filteredSchedules: [CleaningSchedule] {
         if let status = selectedStatus {
@@ -14,33 +15,80 @@ struct CleaningScheduleView: View {
         return viewModel.cleaningSchedules
     }
     
+    private func statusBackgroundColor(for schedule: CleaningSchedule) -> Color {
+        switch schedule.status {
+        case .scheduled:
+            return .scheduledBackground
+        case .inProgress:
+            return .inProgressBackground
+        case .completed:
+            return .completedBackground
+        case .overdue:
+            return .overdueBackground
+        }
+    }
+    
     var body: some View {
         NavigationStack {
-            Group {
-                if viewModel.isLoading {
-                    ProgressView()
+            ScrollView {
+                VStack(spacing: 16) {
+                    // Status filter chips
+                    CleaningFilterBar(selectedStatus: $selectedStatus)
+                    
+                    if viewModel.isLoading {
+                        VStack {
+                            ProgressView()
+                        }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if viewModel.cleaningSchedules.isEmpty {
-                    EmptyStateView(message: "No cleaning schedules")
-                } else {
-                    List(viewModel.cleaningSchedules) { schedule in
-                        NavigationLink(destination: CleaningDetailView(
-                            cleaning: schedule,
-                            onUpdate: {
-                                Task {
-                                    await viewModel.loadCleaningSchedules()
-                                }
+                    } else if filteredSchedules.isEmpty {
+                        EmptyStateView(message: "No cleaning schedules")
+                    } else {
+                        ForEach(filteredSchedules) { schedule in
+                            NavigationLink(
+                                destination: CleaningDetailView(
+                                    cleaning: schedule,
+                                    onUpdate: {
+                                        Task {
+                                            await viewModel.loadCleaningSchedules()
+                                        }
+                                    }
+                                )
+                            ) {
+                                CleaningScheduleCard(
+                                    cleaning: schedule,
+                                    propertyName: viewModel.propertyName(for: schedule.propertyId)
+                                )
+                                .padding(8)
+                                .background(statusBackgroundColor(for: schedule))
+                                .cornerRadius(16)
                             }
-                        )) {
-                            CleaningScheduleCard(
-                                cleaning: schedule,
-                                propertyName: viewModel.propertyName(for: schedule.propertyId)
-                            )
+                            .buttonStyle(.plain)
                         }
                     }
                 }
+                .padding()
             }
             .navigationTitle("Cleaning Schedules")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showingScheduleSheet = true
+                    }) {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingScheduleSheet) {
+                ScheduleCleaningView(isPresentedAsSheet: true)
+            }
+            .onChange(of: showingScheduleSheet) { oldValue, newValue in
+                if !newValue {
+                    // Sheet dismissed, refresh the list
+                    Task {
+                        await viewModel.loadCleaningSchedules()
+                    }
+                }
+            }
             .refreshable {
                 await viewModel.loadCleaningSchedules()
             }

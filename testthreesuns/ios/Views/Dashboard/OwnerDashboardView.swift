@@ -9,9 +9,10 @@ struct OwnerDashboardView: View {
         ScrollView {
             VStack(spacing: 0) {
                 // Welcome Section with gradient background
-                WelcomeSection(
+                DashboardHeaderView(
                     firstName: authViewModel.userProfile?.firstName ?? "User",
-                    role: authViewModel.userProfile?.role ?? .owner
+                    role: authViewModel.userProfile?.role ?? .owner,
+                    viewModel: viewModel
                 )
                 
                 // Content Section
@@ -35,59 +36,13 @@ struct OwnerDashboardView: View {
     }
 }
 
-struct WelcomeSection: View {
-    let firstName: String
-    let role: UserProfile.UserRole
-    
-    var body: some View {
-        ZStack {
-            // Background gradient - using Primary Color 1 from style guide
-            LinearGradient(
-                colors: [.brandPrimary, .brandPrimary.opacity(0.8)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            
-            // Content
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Welcome back,")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.9))
-                    
-                    Text(firstName)
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    Text(role.displayName)
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.9))
-                }
-                
-                Spacer()
-                
-                Image("threesuns")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 96, height: 96)
-                    .accessibilityLabel("Three Suns")
-            }
-            .padding(.horizontal)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 200)
-        .padding(.top, 0)
-        .padding(.bottom, 24)
-        .ignoresSafeArea(edges: .top)
-    }
-}
-
 struct ActiveReservationsSection: View {
     @ObservedObject var viewModel: DashboardViewModel
     
     var activeReservations: [Reservation] {
         viewModel.reservations.filter { $0.isActive }
     }
+    
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -107,7 +62,15 @@ struct ActiveReservationsSection: View {
             } else {
                 ForEach(activeReservations.prefix(5)) { reservation in
                     NavigationLink(destination: ActiveReservationDetailView(reservation: reservation, propertyName: viewModel.propertyName(for: reservation))) {
-                        ReservationCard(reservation: reservation, propertyName: viewModel.propertyName(for: reservation))
+                        ReservationCard(
+                            reservation: reservation,
+                            propertyName: viewModel.propertyName(for: reservation),
+                            cleaning: viewModel.cleaningForReservation(reservation),
+                            showCleaningStatus: true
+                        )
+                        .padding(8)
+                        .background(ReservationCard.backgroundColor(for: reservation))
+                        .cornerRadius(16)
                     }
                     .buttonStyle(.plain)
                 }
@@ -119,6 +82,23 @@ struct ActiveReservationsSection: View {
 
 struct OpenMaintenanceReportsSection: View {
     @ObservedObject var viewModel: DashboardViewModel
+    
+    private func severityBackground(for report: MaintenanceReport) -> Color {
+        // If completed, use green background to indicate it's done
+        if report.status == .resolved {
+            return .completedBackground
+        }
+        
+        // Otherwise use severity-based color
+        switch report.severity {
+        case .low:
+            return .checkInBackground
+        case .medium:
+            return .checkOutBackground
+        case .high, .urgent:
+            return .repairedBackground
+        }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -145,6 +125,9 @@ struct OpenMaintenanceReportsSection: View {
                             propertyName: viewModel.propertyName(for: report.propertyId),
                             reporterName: viewModel.reporterName(for: report.reporterId)
                         )
+                        .padding(8)
+                        .background(severityBackground(for: report))
+                        .cornerRadius(16)
                     }
                     .buttonStyle(.plain)
                 }

@@ -15,7 +15,7 @@ struct ActiveReservationsView: View {
         let now = Date()
         // Show all confirmed reservations that haven't completed yet (checkOut hasn't passed)
         return viewModel.reservations
-            .filter { $0.status == .confirmed && $0.checkOut > now }
+            .filter { $0.status == .confirmed && !$0.isActive && $0.checkIn > now }
             .sorted { $0.checkIn < $1.checkIn }
     }
     
@@ -44,7 +44,15 @@ struct ActiveReservationsView: View {
                         } else {
                             ForEach(activeReservations) { reservation in
                                 NavigationLink(destination: ActiveReservationDetailView(reservation: reservation, propertyName: viewModel.propertyName(for: reservation))) {
-                                    ReservationCard(reservation: reservation, propertyName: viewModel.propertyName(for: reservation))
+                                    ReservationCard(
+                                        reservation: reservation,
+                                        propertyName: viewModel.propertyName(for: reservation),
+                                        cleaning: viewModel.cleaningForReservation(reservation),
+                                        showCleaningStatus: true
+                                    )
+                                        .padding(8)
+                                        .background(ReservationCard.backgroundColor(for: reservation))
+                                        .cornerRadius(16)
                                 }
                                 .buttonStyle(.plain)
                                 .padding(.horizontal)
@@ -76,7 +84,15 @@ struct ActiveReservationsView: View {
                         } else {
                             ForEach(upcomingReservations.prefix(10)) { reservation in
                                 NavigationLink(destination: ActiveReservationDetailView(reservation: reservation, propertyName: viewModel.propertyName(for: reservation))) {
-                                    ReservationCard(reservation: reservation, propertyName: viewModel.propertyName(for: reservation))
+                                    ReservationCard(
+                                        reservation: reservation,
+                                        propertyName: viewModel.propertyName(for: reservation),
+                                        cleaning: viewModel.cleaningForReservation(reservation),
+                                        showCleaningStatus: true
+                                    )
+                                        .padding(8)
+                                        .background(ReservationCard.backgroundColor(for: reservation))
+                                        .cornerRadius(16)
                                 }
                                 .buttonStyle(.plain)
                                 .padding(.horizontal)
@@ -288,6 +304,7 @@ struct ActiveReservationDetailView: View {
 class ReservationsViewModel: ObservableObject {
     @Published var reservations: [Reservation] = []
     @Published var properties: [Property] = []
+    @Published var cleaningSchedules: [CleaningSchedule] = []
     
     private var propertyNameMap: [UUID: String] = [:]
     private let supabase = SupabaseService.shared.supabase
@@ -295,6 +312,7 @@ class ReservationsViewModel: ObservableObject {
     func loadData() async {
         await loadProperties()
         await loadReservations()
+        await loadCleaningSchedules()
     }
     
     
@@ -312,6 +330,22 @@ class ReservationsViewModel: ObservableObject {
             }
         } catch {
             print("Error loading properties: \(error)")
+        }
+    }
+    
+    func loadCleaningSchedules() async {
+        do {
+            let response: [CleaningSchedule] = try await supabase
+                .from("cleaning_schedules")
+                .select()
+                .execute()
+                .value
+            
+            await MainActor.run {
+                cleaningSchedules = response
+            }
+        } catch {
+            print("Error loading cleaning schedules: \(error)")
         }
     }
     
@@ -342,6 +376,13 @@ class ReservationsViewModel: ObservableObject {
     
     func propertyName(for reservation: Reservation) -> String? {
         propertyNameMap[reservation.propertyId]
+    }
+    
+    func cleaningForReservation(_ reservation: Reservation) -> CleaningSchedule? {
+        cleaningSchedules
+            .filter { $0.reservationId == reservation.id }
+            .sorted { $0.scheduledStart < $1.scheduledStart }
+            .first
     }
 }
 
