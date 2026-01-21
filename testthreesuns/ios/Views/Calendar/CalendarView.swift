@@ -48,8 +48,8 @@ struct ReservationsCalendarView: View {
                             .foregroundColor(.secondary)
                             .padding(.horizontal)
                         
-                        // Use LazyVGrid for better layout with 3 columns
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        // Use LazyVGrid with 2 columns for better pill width
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                             Button(action: {
                                 selectedProperty = nil
                             }) {
@@ -101,6 +101,7 @@ struct ReservationsCalendarView: View {
         .task {
             await viewModel.loadProperties()
             await viewModel.loadReservations()
+            await viewModel.loadCleaningSchedules()
         }
     }
 }
@@ -128,8 +129,8 @@ struct CleaningCalendarView: View {
                             .foregroundColor(.secondary)
                             .padding(.horizontal)
                         
-                        // Use LazyVGrid for better layout with 3 columns
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        // Use LazyVGrid with 2 columns for better pill width
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                             Button(action: {
                                 selectedProperty = nil
                             }) {
@@ -220,6 +221,11 @@ struct MonthCalendarView: View {
                     Image(systemName: "chevron.right")
                 }
             }
+
+            CalendarLegendView(
+                showReservationLegend: reservations != nil,
+                showCleaningLegend: cleaningSchedules != nil
+            )
             
             CalendarGridView(
                 selectedDate: $selectedDate,
@@ -233,6 +239,64 @@ struct MonthCalendarView: View {
     private func changeMonth(_ direction: Int) {
         if let newDate = calendar.date(byAdding: .month, value: direction, to: selectedDate) {
             selectedDate = newDate
+        }
+    }
+}
+
+struct CalendarLegendView: View {
+    let showReservationLegend: Bool
+    let showCleaningLegend: Bool
+    
+    private let columns = [
+        GridItem(.flexible(), alignment: .leading),
+        GridItem(.flexible(), alignment: .leading)
+    ]
+    
+    var body: some View {
+        if !showReservationLegend && !showCleaningLegend {
+            EmptyView()
+        } else {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Legend")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                if showReservationLegend {
+                    CalendarLegendItem(color: .checkInColor, label: "Check-in")
+                    CalendarLegendItem(color: .brandPrimary, label: "Active stay")
+                    CalendarLegendItem(color: .checkOutColor, label: "Check-out")
+                }
+                if showCleaningLegend {
+                    CalendarLegendItem(color: .scheduledColor, label: "Cleaning")
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color(.systemGray6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .cornerRadius(10)
+        }
+    }
+}
+
+private struct CalendarLegendItem: View {
+    let color: Color
+    let label: String
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
 }
@@ -354,7 +418,7 @@ struct CalendarDayView: View {
                 VStack(spacing: 4) {
                     Text("\(calendar.component(.day, from: date))")
                         .font(.system(size: 14, weight: isSelected ? .bold : .regular))
-                        .foregroundColor(isSelected ? .white : .primary)
+                        .foregroundColor(isSelected ? .brandPrimary : .primary)
                     
                     // Show dots for reservation status
                     // Style guide colors: Green = check in, Orange/Red = check out, Purple = scheduled, Blue = active stay
@@ -384,8 +448,11 @@ struct CalendarDayView: View {
                     }
                 }
                 .frame(width: 44, height: 44)
-                .background(isSelected ? Color.brandPrimary : Color.clear)
-                .cornerRadius(8)
+                .background(Color.clear)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(isSelected ? Color.brandPrimary : Color.clear, lineWidth: 2)
+                )
             }
         }
     }
@@ -404,6 +471,13 @@ struct ReservationsForDateView: View {
             calendar.isDate(date, inSameDayAs: reservation.checkOut) ||
             (reservation.checkIn <= date && reservation.checkOut >= date)
         }
+    }
+    
+    private func cleaningForReservation(_ reservation: Reservation) -> CleaningSchedule? {
+        viewModel.cleaningSchedules
+            .filter { $0.reservationId == reservation.id }
+            .sorted { $0.scheduledStart < $1.scheduledStart }
+            .first
     }
     
     private func reservationStatus(for reservation: Reservation) -> (isCheckIn: Bool, isCheckOut: Bool, isDuringStay: Bool) {
@@ -439,7 +513,8 @@ struct ReservationsForDateView: View {
                             propertyName: viewModel.propertyName(for: reservation),
                             isCheckIn: status.isCheckIn,
                             isCheckOut: status.isCheckOut,
-                            isDuringStay: status.isDuringStay
+                            isDuringStay: status.isDuringStay,
+                            cleaning: cleaningForReservation(reservation)
                         )
                     }
                     .buttonStyle(.plain)
@@ -455,6 +530,7 @@ struct ReservationCardWithStatus: View {
     let isCheckIn: Bool
     let isCheckOut: Bool
     let isDuringStay: Bool
+    let cleaning: CleaningSchedule?
     
     var statusColor: Color {
         // Style guide colors: Orange/Red = check out, Green = check in, Blue = active stay
@@ -476,6 +552,18 @@ struct ReservationCardWithStatus: View {
         if isCheckOut { return "Check-out" }
         if isDuringStay { return "Active Stay" }
         return ""
+    }
+    
+    private var cleaningPillForeground: Color {
+        cleaning == nil ? .orange : .primary
+    }
+    
+    private var cleaningPillBackground: Color {
+        cleaning == nil ? Color.orange.opacity(0.12) : Color(.systemGray6)
+    }
+    
+    private var cleaningPillBorder: Color {
+        cleaning == nil ? Color.orange.opacity(0.6) : Color(.systemGray4)
     }
     
     var body: some View {
@@ -538,6 +626,34 @@ struct ReservationCardWithStatus: View {
                             .font(.subheadline)
                     }
                 }
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    if let cleaning = cleaning {
+                        Image(systemName: "bubbles.and.sparkles")
+                            .foregroundColor(cleaningPillForeground)
+                            .font(.caption)
+                        Text("Cleaning: \(cleaning.scheduledStart, style: .date) at \(cleaning.scheduledStart, style: .time)")
+                            .font(.subheadline)
+                            .foregroundColor(cleaningPillForeground)
+                    } else {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(cleaningPillForeground)
+                            .font(.caption)
+                        Text("No cleaning scheduled for this stay")
+                            .font(.subheadline)
+                            .foregroundColor(cleaningPillForeground)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(cleaningPillBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(cleaningPillBorder, lineWidth: 1)
+                )
+                .cornerRadius(10)
             }
         }
         .padding()

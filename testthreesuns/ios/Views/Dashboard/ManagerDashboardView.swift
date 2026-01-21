@@ -44,7 +44,7 @@ struct ManagerWelcomeSection: View {
     let role: UserProfile.UserRole
     
     var body: some View {
-        ZStack(alignment: .leading) {
+        ZStack {
             // Background gradient - using Primary Color 1 from style guide
             LinearGradient(
                 colors: [.brandPrimary, .brandPrimary.opacity(0.8)],
@@ -53,25 +53,36 @@ struct ManagerWelcomeSection: View {
             )
             
             // Content
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Welcome back,")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.9))
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Welcome back,")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.9))
+                    
+                    Text(firstName)
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Text(role.displayName)
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.9))
+                }
                 
-                Text(firstName)
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(.white)
+                Spacer()
                 
-                Text(role.displayName)
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.9))
+                Image("threesuns")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 96, height: 96)
+                    .accessibilityLabel("Three Suns")
             }
             .padding(.horizontal)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 180)
-        .padding(.top, 20)
+        .frame(height: 200)
+        .padding(.top, 0)
         .padding(.bottom, 24)
+        .ignoresSafeArea(edges: .top)
     }
 }
 

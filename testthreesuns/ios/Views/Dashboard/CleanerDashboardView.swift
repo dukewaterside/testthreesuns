@@ -39,7 +39,7 @@ struct CleanerWelcomeSection: View {
     let role: UserProfile.UserRole
     
     var body: some View {
-        ZStack(alignment: .leading) {
+        ZStack {
             // Background gradient - using Primary Color 1 from style guide
             LinearGradient(
                 colors: [.brandPrimary, .brandPrimary.opacity(0.8)],
@@ -48,25 +48,36 @@ struct CleanerWelcomeSection: View {
             )
             
             // Content
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Welcome back,")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.9))
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Welcome back,")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.9))
+                    
+                    Text(firstName)
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Text(role.displayName)
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.9))
+                }
                 
-                Text(firstName)
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(.white)
+                Spacer()
                 
-                Text(role.displayName)
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.9))
+                Image("threesuns")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 96, height: 96)
+                    .accessibilityLabel("Three Suns")
             }
             .padding(.horizontal)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 180)
-        .padding(.top, 20)
+        .frame(height: 200)
+        .padding(.top, 0)
         .padding(.bottom, 24)
+        .ignoresSafeArea(edges: .top)
     }
 }
 
@@ -226,14 +237,14 @@ struct CleaningsNeedingSchedulingSection: View {
                 }
             }
             
-            // Property Filter - Use LazyVGrid for better layout
+                    // Property Filter - Use LazyVGrid with 2 columns for better pill width
             if !viewModel.properties.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Filter by Property")
                         .font(.headline)
                         .padding(.horizontal)
                     
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                         Button(action: {
                             selectedProperty = nil
                         }) {
@@ -531,6 +542,7 @@ struct UpcomingCleaningCard: View {
     let propertyName: String?
     @ObservedObject var viewModel: DashboardViewModel
     
+    @State private var isExpanded = false
     @State private var showingChecklist = false
     @State private var checklist: Checklist?
     @State private var isLoadingChecklist = false
@@ -549,12 +561,76 @@ struct UpcomingCleaningCard: View {
         }
     }
     
+    private var property: Property? {
+        viewModel.properties.first { $0.id == cleaning.propertyId }
+    }
+    
+    private var mapsURL: URL? {
+        guard
+            let address = property?.address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+            !address.isEmpty
+        else { return nil }
+        return URL(string: "http://maps.apple.com/?daddr=\(address)")
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            CleaningScheduleCard(
-                cleaning: cleaning,
-                propertyName: propertyName
-            )
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                CleaningScheduleCard(
+                    cleaning: cleaning,
+                    propertyName: propertyName
+                )
+            }
+            .buttonStyle(.plain)
+            
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top) {
+                        Label("Address", systemImage: "mappin.and.ellipse")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        if let url = mapsURL {
+                            Link(destination: url) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.triangle.turn.up.right.diamond")
+                                        .font(.caption)
+                                    Text("Directions")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                }
+                                .foregroundColor(.brandPrimary)
+                            }
+                        }
+                    }
+                    
+                    Text(property?.address ?? "Address unavailable")
+                        .font(.body)
+                        .multilineTextAlignment(.leading)
+                    
+                    HStack {
+                        Text("Property Status")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        if let status = property?.status {
+                            StatusBadge(status: status)
+                        } else {
+                            Text("Unknown")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .padding()
+                .background(Color.white.opacity(0.9))
+                .cornerRadius(10)
+                .transition(.opacity.combined(with: .slide))
+            }
             
             // Start Checklist button - always show, not just for today
             Button(action: {

@@ -17,6 +17,7 @@ struct DashboardView: View {
                     Text("Loading...")
                 }
             }
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

@@ -39,14 +39,14 @@ struct CleaningsNeedingSchedulingView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Property Filter - Use LazyVGrid for better layout
+                // Property Filter - Use LazyVGrid with 2 columns for better pill width
                     if !viewModel.properties.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Filter by Property")
                                 .font(.headline)
                                 .padding(.horizontal)
                             
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                                 Button(action: {
                                     selectedProperty = nil
                                 }) {
