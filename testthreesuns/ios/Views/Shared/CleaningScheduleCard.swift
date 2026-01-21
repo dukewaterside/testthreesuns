@@ -4,43 +4,78 @@ struct CleaningScheduleCard: View {
     let cleaning: CleaningSchedule
     let propertyName: String?
     
+    private var statusColor: Color {
+        switch cleaning.status {
+        case .scheduled:
+            return .scheduledColor
+        case .inProgress:
+            return .inProgressColor
+        case .completed:
+            return .completedColor
+        case .overdue:
+            return .overdueColor
+        }
+    }
+    
+    private var statusBackground: Color {
+        switch cleaning.status {
+        case .scheduled:
+            return .scheduledBackground
+        case .inProgress:
+            return .inProgressBackground
+        case .completed:
+            return .completedBackground
+        case .overdue:
+            return .overdueBackground
+        }
+    }
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(propertyName ?? "Unknown Property")
                     .font(.headline)
                 Spacer()
-                Text("Cleaning scheduled")
+                Text(cleaning.status.displayName)
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundColor(Color.scheduledColor)
+                    .foregroundColor(statusColor)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color.scheduledBackground)
+                    .background(statusBackground)
                     .cornerRadius(8)
             }
             
-            HStack(spacing: 4) {
+            // Date row
+            HStack(spacing: 8) {
                 Image(systemName: "calendar")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.primary)
                 Text(cleaning.scheduledStart, style: .date)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
-                Image(systemName: "clock")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text(cleaning.scheduledStart, style: .time)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+            }
+            
+            // Time row - more prominent
+            HStack(spacing: 8) {
+                Image(systemName: "clock.fill")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(statusColor)
+                Text(cleaning.scheduledStart, style: .time)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
                 
                 if let end = cleaning.scheduledEnd {
-                    Text(" - ")
+                    Text("–")
+                        .font(.headline)
                         .foregroundColor(.secondary)
+                        .padding(.horizontal, 4)
                     Text(end, style: .time)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                 }
             }
         }

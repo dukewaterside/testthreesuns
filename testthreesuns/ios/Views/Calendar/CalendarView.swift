@@ -67,7 +67,7 @@ struct ReservationsCalendarView: View {
                                 Button(action: {
                                     selectedProperty = property
                                 }) {
-                                    Text(property.name)
+                                    Text(property.displayName)
                                         .font(.subheadline)
                                         .fontWeight(.medium)
                                         .lineLimit(1)
@@ -147,7 +147,7 @@ struct CleaningCalendarView: View {
                                 Button(action: {
                                     selectedProperty = property
                                 }) {
-                                    Text(property.name)
+                                    Text(property.displayName)
                                         .font(.subheadline)
                                         .fontWeight(.medium)
                                         .lineLimit(1)
@@ -177,7 +177,7 @@ struct CleaningCalendarView: View {
                 CleaningsForDateView(
                     date: selectedDate,
                     cleanings: filteredCleanings,
-                    propertyNameMap: Dictionary(uniqueKeysWithValues: viewModel.properties.map { ($0.id, $0.name) })
+                    propertyNameMap: Dictionary(uniqueKeysWithValues: viewModel.properties.map { ($0.id, $0.displayName) })
                 )
             }
             .padding()

@@ -6,12 +6,19 @@ struct ManagerChecklistView: View {
     let checklist: Checklist
     @Environment(\.dismiss) var dismiss
     @State private var items: [String: Bool] = [:]
+    @State private var initialItems: [String: Bool] = [:]
     @State private var propertyStatus: Checklist.PropertyStatus = .ready
+    @State private var initialPropertyStatus: Checklist.PropertyStatus = .ready
     @State private var isSubmitting = false
     @State private var showSuccessAlert = false
+    @State private var showCancelConfirmation = false
     
     var allSelected: Bool {
         !items.isEmpty && items.values.allSatisfy { $0 }
+    }
+    
+    private var hasUnsavedChanges: Bool {
+        items != initialItems || propertyStatus != initialPropertyStatus
     }
     
     var body: some View {
@@ -65,6 +72,13 @@ struct ManagerChecklistView: View {
         }
         .navigationTitle("Manager Checklist")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    handleCancel()
+                }
+            }
+        }
         .onAppear {
             loadItems()
         }
@@ -75,16 +89,27 @@ struct ManagerChecklistView: View {
         } message: {
             Text("Manager checklist has been submitted successfully.")
         }
+        .alert("Discard changes?", isPresented: $showCancelConfirmation) {
+            Button("Keep Editing", role: .cancel) { }
+            Button("Discard Changes", role: .destructive) {
+                dismiss()
+            }
+        } message: {
+            Text("You have checklist items marked off or status changes. Are you sure you want to discard your changes?")
+        }
     }
     
     private func loadItems() {
         // checklist.items is [String: AnyCodable], convert to [String: Bool]
-        items = checklist.items.mapValues { codable in
+        let mapped = checklist.items.mapValues { codable in
             if let bool = codable.value as? Bool {
                 return bool
             }
             return false
         }
+        items = mapped
+        initialItems = mapped
+        initialPropertyStatus = propertyStatus
     }
     
     private func submitChecklist() {
@@ -115,6 +140,14 @@ struct ManagerChecklistView: View {
             }
             
             isSubmitting = false
+        }
+    }
+    
+    private func handleCancel() {
+        if hasUnsavedChanges {
+            showCancelConfirmation = true
+        } else {
+            dismiss()
         }
     }
 }

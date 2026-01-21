@@ -64,4 +64,46 @@ class NotificationViewModel: ObservableObject {
         // For now, notifications will be loaded on view appear and refresh
         // TODO: Add Supabase Realtime subscription for push notifications
     }
+
+    func setReadStatus(notificationId: UUID, isRead: Bool) async {
+        guard let index = notifications.firstIndex(where: { $0.id == notificationId }) else { return }
+        let previous = notifications[index]
+        guard previous.isRead != isRead else { return }
+
+        // Optimistic local update for snappy UI
+        notifications[index] = previous.with(isRead: isRead)
+
+        do {
+            let updateData: [String: AnyCodable] = ["is_read": AnyCodable(isRead)]
+
+            try await supabase
+                .from("notifications")
+                .update(updateData)
+                .eq("id", value: notificationId)
+                .execute()
+        } catch {
+            // Revert on failure
+            if let revertIndex = notifications.firstIndex(where: { $0.id == notificationId }) {
+                notifications[revertIndex] = previous
+            }
+            print("❌ Error updating notification read status: \(error)")
+        }
+    }
+
+    func deleteNotification(notificationId: UUID) async {
+        guard let index = notifications.firstIndex(where: { $0.id == notificationId }) else { return }
+        let removed = notifications.remove(at: index)
+
+        do {
+            try await supabase
+                .from("notifications")
+                .delete()
+                .eq("id", value: notificationId)
+                .execute()
+        } catch {
+            // Re-insert on failure
+            notifications.insert(removed, at: min(index, notifications.count))
+            print("❌ Error deleting notification: \(error)")
+        }
+    }
 }

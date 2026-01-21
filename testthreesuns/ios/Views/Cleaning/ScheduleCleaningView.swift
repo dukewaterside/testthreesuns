@@ -7,6 +7,7 @@ struct ScheduleCleaningView: View {
     @StateObject private var viewModel = CleaningViewModel()
     
     let preSelectedReservation: Reservation?
+    let isPresentedAsSheet: Bool
     @State private var selectedReservation: Reservation?
     @State private var scheduledStart = Date()
     @State private var scheduledEnd = Date()
@@ -17,8 +18,9 @@ struct ScheduleCleaningView: View {
     
     @State private var selectedProperty: Property?
     
-    init(preSelectedReservation: Reservation? = nil) {
+    init(preSelectedReservation: Reservation? = nil, isPresentedAsSheet: Bool = false) {
         self.preSelectedReservation = preSelectedReservation
+        self.isPresentedAsSheet = isPresentedAsSheet
     }
     
     var filteredReservations: [Reservation] {
@@ -60,12 +62,12 @@ struct ScheduleCleaningView: View {
                                     Button(action: {
                                         selectedProperty = property
                                     }) {
-                                        Label(property.name, systemImage: selectedProperty?.id == property.id ? "checkmark" : "")
+                                        Label(property.displayName, systemImage: selectedProperty?.id == property.id ? "checkmark" : "")
                                     }
                                 }
                             } label: {
                                 HStack {
-                                    Text(selectedProperty?.name ?? "All Properties")
+                                    Text(selectedProperty?.displayName ?? "All Properties")
                                         .foregroundColor(.primary)
                                     Spacer()
                                     Image(systemName: "chevron.down")
@@ -119,13 +121,6 @@ struct ScheduleCleaningView: View {
             }
             .navigationTitle("Schedule Cleaning")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-            }
             .task {
                 await viewModel.loadProperties()
                 await viewModel.loadAvailableReservations()
@@ -143,7 +138,10 @@ struct ScheduleCleaningView: View {
                     showingScheduleSheet = true
                 }
             }
-            .sheet(isPresented: $showingScheduleSheet) {
+            .sheet(isPresented: $showingScheduleSheet, onDismiss: {
+                // Clear selection when sheet is dismissed (including swipe down)
+                selectedReservation = nil
+            }) {
                 if let reservation = selectedReservation {
                     ScheduleCleaningBottomSheet(
                         reservation: reservation,
@@ -161,7 +159,6 @@ struct ScheduleCleaningView: View {
                             selectedReservation = nil
                         }
                     )
-                    .interactiveDismissDisabled(true)
                 }
             }
             .alert("Cleaning Scheduled", isPresented: $showingSuccessAlert) {
@@ -171,8 +168,16 @@ struct ScheduleCleaningView: View {
             } message: {
                 Text("Your cleaning has been successfully scheduled.")
             }
+            .toolbar {
+                if isPresentedAsSheet {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                    }
+                }
+            }
         }
-        .interactiveDismissDisabled(true)
     }
     
     private func previousCheckout(for reservation: Reservation) -> Date? {
@@ -371,6 +376,7 @@ struct ScheduleCleaningBottomSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
+                        .foregroundColor(.red)
                 }
             }
         }

@@ -49,20 +49,24 @@ struct MaintenanceDetailView: View {
                         
                         Spacer()
                         
-                        // Status Badge
-                        HStack(spacing: 4) {
-                            Image(systemName: currentReport.status == .reported ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                                .font(.caption)
-                                .foregroundColor(currentReport.status == .reported ? Color(.systemGray4) : Color.green)
-                            Text(currentReport.status == .reported ? "Not Repaired" : "Completed")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(currentReport.status == .reported ? Color(.systemGray4) : Color.green)
+                        VStack(alignment: .trailing, spacing: 8) {
+                            MaintenanceSeverityBadge(severity: currentReport.severity)
+                            
+                            // Status Badge
+                            HStack(spacing: 4) {
+                                Image(systemName: currentReport.status == .reported ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundColor(currentReport.status == .reported ? Color(.systemGray4) : Color.green)
+                                Text(currentReport.status == .reported ? "Not Repaired" : "Completed")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(currentReport.status == .reported ? Color(.systemGray4) : Color.green)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(currentReport.status == .reported ? Color(.systemGray6) : Color.green.opacity(0.1))
+                            .cornerRadius(8)
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(currentReport.status == .reported ? Color(.systemGray6) : Color.green.opacity(0.1))
-                        .cornerRadius(8)
                     }
                 }
                 .padding()

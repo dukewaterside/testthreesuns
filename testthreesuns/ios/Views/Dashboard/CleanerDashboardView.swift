@@ -111,8 +111,8 @@ struct CleanerQuickActionsView: View {
                 }
                 .buttonStyle(.plain)
                 
-                NavigationLink(destination: CleaningScheduleView()) {
-                    QuickActionButton(icon: "list.bullet.rectangle", title: "Cleaning Schedule", color: .brandPrimary)
+                NavigationLink(destination: CreateMaintenanceReportView(showCancelButton: false)) {
+                    QuickActionButton(icon: "wrench.and.screwdriver", title: "Report Maintenance", color: .brandPrimary)
                 }
                 .buttonStyle(.plain)
             }
@@ -160,9 +160,10 @@ struct UpcomingCleaningsSection: View {
                     .padding()
             } else {
                 ForEach(upcomingCleanings.prefix(2)) { cleaning in
-                    CleaningScheduleCard(
+                    UpcomingCleaningCard(
                         cleaning: cleaning,
-                        propertyName: viewModel.propertyName(for: cleaning.propertyId)
+                        propertyName: viewModel.propertyName(for: cleaning.propertyId),
+                        viewModel: viewModel
                     )
                 }
             }
@@ -250,7 +251,7 @@ struct CleaningsNeedingSchedulingSection: View {
                             Button(action: {
                                 selectedProperty = property
                             }) {
-                                Text(property.name)
+                                Text(property.displayName)
                                     .font(.subheadline)
                                     .fontWeight(.medium)
                                     .lineLimit(1)
@@ -345,6 +346,8 @@ struct ActiveCleaningCard: View {
     @ObservedObject var viewModel: DashboardViewModel
     @State private var showingChecklist = false
     @State private var checklist: Checklist?
+    @State private var isLoadingChecklist = false
+    @State private var checklistError: String?
     
     var isWithin15Minutes: Bool {
         let now = Date()
@@ -359,8 +362,10 @@ struct ActiveCleaningCard: View {
                     .font(.headline)
                 Spacer()
                 Button(action: {
-                    loadChecklistForCleaning()
-                    showingChecklist = true
+                    Task {
+                        await loadChecklistForCleaning()
+                        showingChecklist = true
+                    }
                 }) {
                     Text("Complete Checklist")
                         .font(.subheadline)
@@ -371,6 +376,7 @@ struct ActiveCleaningCard: View {
                         .background(Color.brandPrimary)
                         .cornerRadius(8)
                 }
+                .disabled(isLoadingChecklist)
             }
             
             Text("Complete within 15 minutes of finishing")
@@ -387,35 +393,325 @@ struct ActiveCleaningCard: View {
         .background(Color.brandPrimary.opacity(0.1))
         .cornerRadius(12)
         .sheet(isPresented: $showingChecklist) {
-            if let checklist = checklist {
-                CleaningChecklistView(checklist: checklist, cleaningSchedule: cleaning)
-                    .interactiveDismissDisabled(true)
-            } else {
-                Text("Loading checklist...")
-                    .interactiveDismissDisabled(true)
+            Group {
+                if isLoadingChecklist {
+                    NavigationStack {
+                        VStack {
+                            ProgressView()
+                            Text("Loading checklist...")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .padding(.top)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .navigationTitle("Cleaning Checklist")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") {
+                                    showingChecklist = false
+                                }
+                            }
+                        }
+                    }
+                } else if let checklist = checklist {
+                    CleaningChecklistView(checklist: checklist, cleaningSchedule: cleaning)
+                } else if let error = checklistError {
+                    NavigationStack {
+                        VStack(spacing: 16) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 50))
+                                .foregroundColor(.orange)
+                            Text("Checklist Not Found")
+                                .font(.headline)
+                            Text(error)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .navigationTitle("Cleaning Checklist")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") {
+                                    showingChecklist = false
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    NavigationStack {
+                        VStack(spacing: 16) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 50))
+                                .foregroundColor(.orange)
+                            Text("Checklist Not Found")
+                                .font(.headline)
+                            Text("No cleaning checklist found for this cleaning. Please contact your manager.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .navigationTitle("Cleaning Checklist")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") {
+                                    showingChecklist = false
+                                }
+                            }
+                        }
+                    }
+                }
             }
+            .interactiveDismissDisabled(true)
         }
     }
     
-    private func loadChecklistForCleaning() {
-        // Find checklist associated with this cleaning's reservation or property
+    private func loadChecklistForCleaning() async {
+        isLoadingChecklist = true
+        checklistError = nil
+        
+        // First, try to find checklist in already loaded data
+        var foundChecklist: Checklist?
+        
         if let reservationId = cleaning.reservationId {
-            checklist = viewModel.checklists.first { $0.reservationId == reservationId && !$0.isCompleted }
+            foundChecklist = viewModel.checklists.first { checklist in
+                checklist.reservationId == reservationId &&
+                checklist.checklistType == .cleaning &&
+                !checklist.isCompleted
+            }
         } else {
-            // Find checklist for this property that's not completed
-            checklist = viewModel.checklists.first { $0.propertyId == cleaning.propertyId && !$0.isCompleted }
+            foundChecklist = viewModel.checklists.first { checklist in
+                checklist.propertyId == cleaning.propertyId &&
+                checklist.checklistType == .cleaning &&
+                !checklist.isCompleted
+            }
         }
         
-        // If no checklist found, create one or load from server
-        if checklist == nil {
-            Task {
-                await viewModel.loadData()
-                if let reservationId = cleaning.reservationId {
-                    checklist = viewModel.checklists.first { $0.reservationId == reservationId && !$0.isCompleted }
-                } else {
-                    checklist = viewModel.checklists.first { $0.propertyId == cleaning.propertyId && !$0.isCompleted }
+        // If not found, reload checklists from server
+        if foundChecklist == nil {
+            await viewModel.loadChecklists()
+            
+            // Try again after reload
+            if let reservationId = cleaning.reservationId {
+                foundChecklist = viewModel.checklists.first { checklist in
+                    checklist.reservationId == reservationId &&
+                    checklist.checklistType == .cleaning &&
+                    !checklist.isCompleted
+                }
+            } else {
+                foundChecklist = viewModel.checklists.first { checklist in
+                    checklist.propertyId == cleaning.propertyId &&
+                    checklist.checklistType == .cleaning &&
+                    !checklist.isCompleted
                 }
             }
+        }
+        
+        await MainActor.run {
+            if let found = foundChecklist {
+                checklist = found
+                checklistError = nil
+            } else {
+                checklist = nil
+                checklistError = "No cleaning checklist found for this cleaning schedule. The checklist may not have been created yet."
+            }
+            isLoadingChecklist = false
+        }
+    }
+}
+
+struct UpcomingCleaningCard: View {
+    let cleaning: CleaningSchedule
+    let propertyName: String?
+    @ObservedObject var viewModel: DashboardViewModel
+    
+    @State private var showingChecklist = false
+    @State private var checklist: Checklist?
+    @State private var isLoadingChecklist = false
+    @State private var checklistError: String?
+    
+    private var statusBackgroundColor: Color {
+        switch cleaning.status {
+        case .scheduled:
+            return .scheduledBackground
+        case .inProgress:
+            return .inProgressBackground
+        case .completed:
+            return .completedBackground
+        case .overdue:
+            return .overdueBackground
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            CleaningScheduleCard(
+                cleaning: cleaning,
+                propertyName: propertyName
+            )
+            
+            // Start Checklist button - always show, not just for today
+            Button(action: {
+                Task {
+                    await loadChecklistForCleaning()
+                    showingChecklist = true
+                }
+            }) {
+                HStack {
+                    Image(systemName: "checklist")
+                        .font(.subheadline)
+                    Text("Start Checklist")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Spacer()
+                }
+                .foregroundColor(.white)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .background(Color.brandPrimary)
+                .cornerRadius(10)
+            }
+            .disabled(isLoadingChecklist)
+        }
+        .padding()
+        .background(statusBackgroundColor)
+        .cornerRadius(12)
+        .sheet(isPresented: $showingChecklist) {
+            Group {
+                if isLoadingChecklist {
+                    NavigationStack {
+                        VStack {
+                            ProgressView()
+                            Text("Loading checklist...")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .padding(.top)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .navigationTitle("Cleaning Checklist")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") {
+                                    showingChecklist = false
+                                }
+                            }
+                        }
+                    }
+                } else if let checklist = checklist {
+                    CleaningChecklistView(checklist: checklist, cleaningSchedule: cleaning)
+                } else if let error = checklistError {
+                    NavigationStack {
+                        VStack(spacing: 16) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 50))
+                                .foregroundColor(.orange)
+                            Text("Checklist Not Found")
+                                .font(.headline)
+                            Text(error)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .navigationTitle("Cleaning Checklist")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") {
+                                    showingChecklist = false
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    NavigationStack {
+                        VStack(spacing: 16) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 50))
+                                .foregroundColor(.orange)
+                            Text("Checklist Not Found")
+                                .font(.headline)
+                            Text("No cleaning checklist found for this cleaning. Please contact your manager.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .navigationTitle("Cleaning Checklist")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") {
+                                    showingChecklist = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .interactiveDismissDisabled(true)
+        }
+    }
+    
+    private func loadChecklistForCleaning() async {
+        isLoadingChecklist = true
+        checklistError = nil
+        
+        // First, try to find checklist in already loaded data
+        var foundChecklist: Checklist?
+        
+        if let reservationId = cleaning.reservationId {
+            foundChecklist = viewModel.checklists.first { checklist in
+                checklist.reservationId == reservationId &&
+                checklist.checklistType == .cleaning &&
+                !checklist.isCompleted
+            }
+        } else {
+            foundChecklist = viewModel.checklists.first { checklist in
+                checklist.propertyId == cleaning.propertyId &&
+                checklist.checklistType == .cleaning &&
+                !checklist.isCompleted
+            }
+        }
+        
+        // If not found, reload checklists from server
+        if foundChecklist == nil {
+            await viewModel.loadChecklists()
+            
+            // Try again after reload
+            if let reservationId = cleaning.reservationId {
+                foundChecklist = viewModel.checklists.first { checklist in
+                    checklist.reservationId == reservationId &&
+                    checklist.checklistType == .cleaning &&
+                    !checklist.isCompleted
+                }
+            } else {
+                foundChecklist = viewModel.checklists.first { checklist in
+                    checklist.propertyId == cleaning.propertyId &&
+                    checklist.checklistType == .cleaning &&
+                    !checklist.isCompleted
+                }
+            }
+        }
+        
+        await MainActor.run {
+            if let found = foundChecklist {
+                checklist = found
+                checklistError = nil
+            } else {
+                checklist = nil
+                checklistError = "No cleaning checklist found for this cleaning schedule. The checklist may not have been created yet."
+            }
+            isLoadingChecklist = false
         }
     }
 }
@@ -442,7 +738,7 @@ struct ScheduleCleaningButton: View {
             .cornerRadius(12)
         }
         .sheet(isPresented: $showingScheduleView) {
-            ScheduleCleaningView()
+            ScheduleCleaningView(isPresentedAsSheet: true)
                 .interactiveDismissDisabled(true)
         }
     }

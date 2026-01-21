@@ -52,7 +52,7 @@ class MaintenanceViewModel: ObservableObject {
             
             await MainActor.run {
                 properties = response
-                propertyNameMap = Dictionary(uniqueKeysWithValues: response.map { ($0.id, $0.name) })
+                propertyNameMap = Dictionary(uniqueKeysWithValues: response.map { ($0.id, $0.displayName) })
             }
         } catch {
             print("Error loading properties: \(error)")

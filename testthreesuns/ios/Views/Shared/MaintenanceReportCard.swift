@@ -26,9 +26,16 @@ struct MaintenanceReportCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 // Title and Property
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(report.title)
-                        .font(.headline)
-                        .foregroundColor(.primary)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(report.title)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                            .lineLimit(2)
+                        
+                        Spacer(minLength: 8)
+                        
+                        MaintenanceSeverityBadge(severity: report.severity)
+                    }
                     
                     if let propertyName = propertyName {
                         Text(propertyName)

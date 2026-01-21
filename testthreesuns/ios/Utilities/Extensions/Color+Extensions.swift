@@ -20,6 +20,12 @@ extension Color {
     static let repairedBackground = Color(hex: "FFE2E2") // Repaired Background
     static let upcomingColor = Color(hex: "E903DA") // Upcoming Magenta
     static let upcomingBackground = Color(hex: "FFC3FB") // Upcoming Background
+    static let inProgressColor = Color(hex: "3E6AFF") // In Progress Blue
+    static let inProgressBackground = Color(hex: "E0E8FF") // In Progress Background
+    static let completedColor = Color(hex: "1ABF4A") // Completed Green
+    static let completedBackground = Color(hex: "DCFCE7") // Completed Background
+    static let overdueColor = Color(hex: "D04815") // Overdue Orange/Red
+    static let overdueBackground = Color(hex: "FFECD4") // Overdue Background
     
     // Text Colors
     static let textWhite = Color(hex: "FFFFFF")

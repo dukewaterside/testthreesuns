@@ -64,7 +64,7 @@ struct CleaningsNeedingSchedulingView: View {
                                     Button(action: {
                                         selectedProperty = property
                                     }) {
-                                        Text(property.name)
+                                        Text(property.displayName)
                                             .font(.subheadline)
                                             .fontWeight(.medium)
                                             .lineLimit(1)

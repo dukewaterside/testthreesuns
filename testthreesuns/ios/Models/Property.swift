@@ -4,15 +4,22 @@ import SwiftUI
 struct Property: Identifiable, Codable, Hashable {
     let id: UUID
     let name: String
+    let shortName: String?
     let address: String
     let airbnbListingId: String?
     let icalUrl: String
     let status: PropertyStatus
     
+    var displayName: String {
+        let trimmed = (shortName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? name : trimmed
+    }
+    
     // Explicit CodingKeys to map database snake_case to Swift camelCase
     enum CodingKeys: String, CodingKey {
         case id
         case name
+        case shortName = "short_name"
         case address
         case airbnbListingId = "airbnb_listing_id"
         case icalUrl = "ical_url"

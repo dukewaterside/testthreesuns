@@ -108,9 +108,9 @@ extension ManagerDashboardView {
                         ZStack(alignment: .topTrailing) {
                             QuickActionButton(icon: "wrench.and.screwdriver", title: "Maintenance Reports", color: .brandPrimary)
                             
-                            // Badge for pending maintenance reports
-                            if viewModel.pendingMaintenanceReportsCount > 0 {
-                                Text("\(viewModel.pendingMaintenanceReportsCount)")
+                            // Badge for urgent maintenance reports only
+                            if viewModel.urgentMaintenanceReportsCount > 0 {
+                                Text("\(viewModel.urgentMaintenanceReportsCount)")
                                     .font(.caption2)
                                     .fontWeight(.bold)
                                     .foregroundColor(.white)
@@ -217,6 +217,18 @@ struct ReservationCardWithChecklistButton: View {
         return !relevantChecklists.isEmpty && relevantChecklists.allSatisfy { $0.isCompleted }
     }
     
+    private var statusBackgroundColor: Color {
+        if reservation.isActive {
+            return .checkInBackground
+        } else if reservation.checkIn > Date() {
+            return .upcomingBackground
+        } else if reservation.checkOut < Date() {
+            return .checkOutBackground
+        } else {
+            return Color(.systemGray6)
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ReservationCard(reservation: reservation, propertyName: propertyName)
@@ -270,7 +282,7 @@ struct ReservationCardWithChecklistButton: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(statusBackgroundColor)
         .cornerRadius(12)
         .sheet(item: $selectedProperty) { property in
             ManagerChecklistTypesView(

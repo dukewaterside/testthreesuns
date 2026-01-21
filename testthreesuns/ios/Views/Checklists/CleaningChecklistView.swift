@@ -7,17 +7,15 @@ struct CleaningChecklistView: View {
     let cleaningSchedule: CleaningSchedule?
     @Environment(\.dismiss) var dismiss
     @State private var items: [String: Bool] = [:]
+    @State private var initialItems: [String: Bool] = [:]
     @State private var isSubmitting = false
     @State private var errorMessage: String?
     @State private var showSuccessAlert = false
+    @State private var showCancelConfirmation = false
     
     init(checklist: Checklist, cleaningSchedule: CleaningSchedule? = nil) {
         self.checklist = checklist
         self.cleaningSchedule = cleaningSchedule
-    }
-    
-    var allSelected: Bool {
-        !items.isEmpty && items.values.allSatisfy { $0 }
     }
     
     // Cleaning checklist structure
@@ -55,70 +53,79 @@ struct CleaningChecklistView: View {
         ])
     ]
     
+    private var hasUnsavedChanges: Bool {
+        items != initialItems
+    }
+    
     var body: some View {
         NavigationStack {
-            Form {
-                ForEach(cleaningSections) { section in
-                    Section(section.title) {
-                        ForEach(section.items, id: \.self) { item in
-                            Toggle(item, isOn: Binding(
-                                get: { items[item] ?? false },
-                                set: { items[item] = $0 }
-                            ))
+            content
+                .navigationTitle("Cleaning Checklist")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            handleCancel()
                         }
                     }
                 }
-                
+                .onAppear {
+                    loadItems()
+                }
+                .alert("Checklist Completed", isPresented: $showSuccessAlert) {
+                    Button("OK") {
+                        dismiss()
+                    }
+                } message: {
+                    Text("The cleaning checklist has been submitted successfully. Property manager and owner have been notified.")
+                }
+                .alert("Discard changes?", isPresented: $showCancelConfirmation) {
+                    Button("Keep Editing", role: .cancel) { }
+                    Button("Discard Changes", role: .destructive) {
+                        dismiss()
+                    }
+                } message: {
+                    Text("You have checklist items marked off. Are you sure you want to discard your changes?")
+                }
+        }
+    }
+    
+    @ViewBuilder
+    private var content: some View {
+        Form {
+            ForEach(cleaningSections) { section in
+                Section(section.title) {
+                    ForEach(section.items, id: \.self) { item in
+                        Toggle(item, isOn: Binding(
+                            get: { items[item] ?? false },
+                            set: { items[item] = $0 }
+                        ))
+                    }
+                }
+            }
+            
+            if let errorMessage = errorMessage {
                 Section {
-                    Button(action: {
-                        let newValue = !allSelected
-                        items = Dictionary(uniqueKeysWithValues: items.keys.map { ($0, newValue) })
-                    }) {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .font(.caption)
+                }
+            }
+            
+            Section {
+                Button(action: submitChecklist) {
+                    if isSubmitting {
                         HStack {
-                            Text(allSelected ? "Deselect All" : "Select All")
-                                .foregroundColor(.brandPrimary)
                             Spacer()
-                            Image(systemName: allSelected ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(.brandPrimary)
+                            ProgressView()
+                            Spacer()
                         }
+                    } else {
+                        Text("Complete Checklist")
+                            .frame(maxWidth: .infinity)
                     }
                 }
-                
-                if let errorMessage = errorMessage {
-                    Section {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                            .font(.caption)
-                    }
-                }
-                
-                Section {
-                    Button(action: submitChecklist) {
-                        if isSubmitting {
-                            HStack {
-                                Spacer()
-                                ProgressView()
-                                Spacer()
-                            }
-                        } else {
-                            Text("Complete Checklist")
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .disabled(isSubmitting || checklist.isCompleted)
-                }
-            }
-            .navigationTitle("Cleaning Checklist")
-            .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                loadItems()
-            }
-            .alert("Checklist Completed", isPresented: $showSuccessAlert) {
-                Button("OK") {
-                    dismiss()
-                }
-            } message: {
-                Text("The cleaning checklist has been submitted successfully. Property manager and owner have been notified.")
+                .disabled(isSubmitting || checklist.isCompleted)
             }
         }
     }
@@ -140,6 +147,7 @@ struct CleaningChecklistView: View {
         }
         
         items = allItems
+        initialItems = allItems
     }
     
     private func submitChecklist() {
@@ -178,6 +186,14 @@ struct CleaningChecklistView: View {
                     isSubmitting = false
                 }
             }
+        }
+    }
+    
+    private func handleCancel() {
+        if hasUnsavedChanges {
+            showCancelConfirmation = true
+        } else {
+            dismiss()
         }
     }
 }

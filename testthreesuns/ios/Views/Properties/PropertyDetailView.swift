@@ -9,17 +9,17 @@ struct PropertyDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 PropertyHeader(property: property)
                 
-                CurrentReservationSection(viewModel: viewModel, propertyName: property.name)
+                CurrentReservationSection(viewModel: viewModel, propertyName: property.displayName)
                 
-                UpcomingReservationsSection(viewModel: viewModel, propertyName: property.name)
+                UpcomingReservationsSection(viewModel: viewModel, propertyName: property.displayName)
                 
-                CleaningSchedulesSection(viewModel: viewModel, propertyName: property.name)
+                CleaningSchedulesSection(viewModel: viewModel, propertyName: property.displayName)
                 
-                MaintenanceReportsSection(viewModel: viewModel, propertyName: property.name)
+                MaintenanceReportsSection(viewModel: viewModel, propertyName: property.displayName)
             }
             .padding()
         }
-        .navigationTitle(property.name)
+        .navigationTitle(property.displayName)
         .navigationBarTitleDisplayMode(.large)
         .task {
             await viewModel.loadData(for: property.id)

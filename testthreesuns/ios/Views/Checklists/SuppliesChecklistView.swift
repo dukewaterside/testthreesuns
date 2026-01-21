@@ -7,8 +7,11 @@ struct SuppliesChecklistView: View {
     var onCompleted: (() -> Void)? = nil
     @Environment(\.dismiss) var dismiss
     @State private var items: [String: Bool] = [:]
+    @State private var initialItems: [String: Bool] = [:]
     @State private var isSubmitting = false
     @State private var showSuccessAlert = false
+    @State private var showReorderReview = false
+    @State private var showCancelConfirmation = false
     
     // Supplies checklist structure
     private let suppliesSections: [SuppliesSection] = [
@@ -56,6 +59,14 @@ struct SuppliesChecklistView: View {
         items.filter { $0.value }.map { $0.key }
     }
     
+    private var checkedItemsSorted: [String] {
+        checkedItems.sorted()
+    }
+    
+    private var hasUnsavedChanges: Bool {
+        items != initialItems
+    }
+    
     var body: some View {
         Form {
             Section {
@@ -75,15 +86,33 @@ struct SuppliesChecklistView: View {
                 }
             }
             
-            if !checkedItems.isEmpty {
-                Section("Items to Order") {
-                    ForEach(checkedItems, id: \.self) { item in
-                        HStack {
-                            Image(systemName: "cart.fill")
-                                .foregroundColor(.brandPrimary)
-                            Text(item)
-                        }
+            Section("Reorder Review") {
+                Button {
+                    showReorderReview = true
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "cart.fill")
+                            .foregroundColor(.brandPrimary)
+                        Text("Review items to reorder")
+                        Spacer()
+                        Text("\(checkedItems.count)")
+                            .foregroundColor(.secondary)
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.secondary)
+                            .font(.caption.weight(.semibold))
                     }
+                }
+                .disabled(checkedItems.isEmpty)
+                
+                if checkedItems.isEmpty {
+                    Text("No items selected yet.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(checkedItemsSorted.joined(separator: ", "))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(3)
                 }
             }
             
@@ -105,8 +134,68 @@ struct SuppliesChecklistView: View {
         }
         .navigationTitle("Supplies Checklist")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    handleCancel()
+                }
+            }
+        }
         .onAppear {
             loadItems()
+        }
+        .safeAreaInset(edge: .bottom) {
+            if !checkedItems.isEmpty && !checklist.isCompleted {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(checkedItems.count) item\(checkedItems.count == 1 ? "" : "s") to reorder")
+                            .font(.subheadline.weight(.semibold))
+                        Text(checkedItemsSorted.prefix(2).joined(separator: ", ") + (checkedItems.count > 2 ? "…" : ""))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                    
+                    Spacer()
+                    
+                    Button("Review") {
+                        showReorderReview = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial)
+            }
+        }
+        .sheet(isPresented: $showReorderReview) {
+            NavigationStack {
+                List {
+                    if checkedItemsSorted.isEmpty {
+                        ContentUnavailableView("No items selected", systemImage: "cart", description: Text("Check items in the checklist to add them here."))
+                    } else {
+                        Section("Items to reorder") {
+                            ForEach(checkedItemsSorted, id: \.self) { item in
+                                Toggle(item, isOn: Binding(
+                                    get: { items[item] ?? false },
+                                    set: { items[item] = $0 }
+                                ))
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Reorder Review")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Close") { showReorderReview = false }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Clear") { clearAllSelections() }
+                            .disabled(checkedItemsSorted.isEmpty)
+                    }
+                }
+            }
         }
         .alert("Checklist Submitted", isPresented: $showSuccessAlert) {
             Button("OK") {
@@ -120,6 +209,14 @@ struct SuppliesChecklistView: View {
                 Text("Supplies checklist submitted successfully.")
             }
         }
+        .alert("Discard changes?", isPresented: $showCancelConfirmation) {
+            Button("Keep Editing", role: .cancel) { }
+            Button("Discard Changes", role: .destructive) {
+                dismiss()
+            }
+        } message: {
+            Text("You have checklist items marked off. Are you sure you want to discard your changes?")
+        }
     }
     
     private func loadItems() {
@@ -132,6 +229,7 @@ struct SuppliesChecklistView: View {
             }
         }
         items = allItems
+        initialItems = allItems
     }
     
     private func submitChecklist() {
@@ -164,6 +262,20 @@ struct SuppliesChecklistView: View {
             }
             
             isSubmitting = false
+        }
+    }
+    
+    private func clearAllSelections() {
+        for key in items.keys {
+            items[key] = false
+        }
+    }
+    
+    private func handleCancel() {
+        if hasUnsavedChanges {
+            showCancelConfirmation = true
+        } else {
+            dismiss()
         }
     }
 }

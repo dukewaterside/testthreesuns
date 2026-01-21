@@ -28,7 +28,7 @@ struct ManagerPropertyChecklistSelectionView: View {
                         }) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(property.name)
+                                    Text(property.displayName)
                                         .font(.headline)
                                         .foregroundColor(.primary)
                                     Text(property.address)
@@ -138,7 +138,7 @@ struct ManagerChecklistTypesView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Checklists for \(property.name)") {
+                Section("Checklists for \(property.displayName)") {
                     // Inspection Checklist
                     NavigationLink(destination: {
                         if let checklist = inspectionChecklist {
@@ -257,7 +257,7 @@ struct ManagerChecklistTypesView: View {
                     }
                 }
             }
-            .navigationTitle(property.name)
+            .navigationTitle(property.displayName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

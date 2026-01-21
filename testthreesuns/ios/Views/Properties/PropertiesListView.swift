@@ -9,7 +9,7 @@ struct PropertiesListView: View {
         var filtered = viewModel.properties
         
         if !searchText.isEmpty {
-            filtered = filtered.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            filtered = filtered.filter { $0.displayName.localizedCaseInsensitiveContains(searchText) }
         }
         
         if let status = selectedStatus {
@@ -114,7 +114,7 @@ struct PropertyRow: View {
     var body: some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(property.name)
+                Text(property.displayName)
                     .font(.headline)
                     .foregroundColor(.primary)
                 

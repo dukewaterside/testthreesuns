@@ -88,6 +88,10 @@ class DashboardViewModel: ObservableObject {
         maintenanceReports.filter { $0.status == .reported }.count
     }
     
+    var urgentMaintenanceReportsCount: Int {
+        maintenanceReports.filter { $0.status == .reported && $0.severity == .urgent }.count
+    }
+    
     var todaysCleanings: [CleaningSchedule] {
         let today = Calendar.current.startOfDay(for: Date())
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
@@ -140,7 +144,7 @@ class DashboardViewModel: ObservableObject {
             await MainActor.run {
                 properties = response
                 // Build property name map
-                propertyNameMap = Dictionary(uniqueKeysWithValues: response.map { ($0.id, $0.name) })
+                propertyNameMap = Dictionary(uniqueKeysWithValues: response.map { ($0.id, $0.displayName) })
                 print("✅ Dashboard: Loaded \(response.count) properties")
             }
         } catch {

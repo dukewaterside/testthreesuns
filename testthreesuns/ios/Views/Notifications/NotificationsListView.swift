@@ -33,7 +33,7 @@ struct NotificationsListView: View {
     }
     
     var groupedNotifications: [(String, String?, [AppNotification])] {
-        let calendar = Calendar.current
+        let _ = Calendar.current
         let now = Date()
         
         var grouped: [String: (String?, [AppNotification])] = [:]
@@ -126,11 +126,52 @@ struct NotificationsListView: View {
                             let (section, dateString, notifications) = group
                             Section {
                                 ForEach(notifications) { notification in
-                                    NotificationCard(notification: notification)
-                                        .onTapGesture {
-                                            markAsRead(notification)
-                                            navigateToRelatedItem(notification)
+                                    NavigationLink {
+                                        NotificationDetailView(
+                                            viewModel: viewModel,
+                                            notificationId: notification.id
+                                        )
+                                    } label: {
+                                        NotificationCard(notification: notification)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        if !notification.isRead {
+                                            Button {
+                                                Task {
+                                                    await viewModel.setReadStatus(
+                                                        notificationId: notification.id,
+                                                        isRead: true
+                                                    )
+                                                }
+                                            } label: {
+                                                Label("Mark as Read", systemImage: "checkmark.circle")
+                                            }
+                                            .tint(.blue)
                                         }
+
+                                        if notification.isRead {
+                                            Button {
+                                                Task {
+                                                    await viewModel.setReadStatus(
+                                                        notificationId: notification.id,
+                                                        isRead: false
+                                                    )
+                                                }
+                                            } label: {
+                                                Label("Mark as Unread", systemImage: "arrow.uturn.backward")
+                                            }
+                                            .tint(.blue)
+
+                                            Button(role: .destructive) {
+                                                Task {
+                                                    await viewModel.deleteNotification(notificationId: notification.id)
+                                                }
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                    }
                                 }
                             } header: {
                                 HStack {
@@ -147,13 +188,13 @@ struct NotificationsListView: View {
                             }
                         }
                     }
+                    .refreshable {
+                        await viewModel.loadNotifications()
+                    }
                 }
             }
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.inline)
-            .refreshable {
-                await viewModel.loadNotifications()
-            }
             .task {
                 await viewModel.loadNotifications()
                 viewModel.subscribeToNotifications()
@@ -171,37 +212,6 @@ struct NotificationsListView: View {
                 }
             }
         }
-    }
-    
-    private func formatSectionDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: date)
-    }
-    
-    private func markAsRead(_ notification: AppNotification) {
-        guard !notification.isRead else { return }
-        
-        Task {
-            do {
-                let updateData: [String: AnyCodable] = ["is_read": AnyCodable(true)]
-                
-                try await SupabaseService.shared.supabase
-                    .from("notifications")
-                    .update(updateData)
-                    .eq("id", value: notification.id)
-                    .execute()
-                
-                await viewModel.loadNotifications()
-            } catch {
-                print("Error marking as read: \(error)")
-            }
-        }
-    }
-    
-    private func navigateToRelatedItem(_ notification: AppNotification) {
-        // Navigation logic based on notification type
-        // This will be implemented based on the related_id and type
     }
 }
 
@@ -226,6 +236,27 @@ struct FilterButton: View {
 
 struct NotificationCard: View {
     let notification: AppNotification
+    
+    // Urgency indicator color:
+    // - Red for important
+    // - Green for reservation / guest-related (check-in/check-out)
+    // - Orange for normal
+    private var indicatorColor: Color {
+        if notification.isImportant {
+            return .red
+        }
+        
+        if isReservationType {
+            return .checkInColor
+        }
+        
+        return .orange
+    }
+    
+    private var isReservationType: Bool {
+        let type = notification.type.lowercased()
+        return type.contains("reservation") || type.contains("booking") || type.contains("guest")
+    }
     
     // Remove check-in and check-out text from notification body
     // Since these are already displayed in ReservationDetailsView bubbles
@@ -252,32 +283,42 @@ struct NotificationCard: View {
     
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // Red star for important notifications, orange dot for unread
-            if notification.isImportant {
-                Image(systemName: "star.fill")
-                    .foregroundColor(.red)
-                    .font(.caption)
-                    .padding(.top, 2)
-            } else if !notification.isRead {
-                Circle()
-                    .fill(Color.orange)
-                    .frame(width: 8, height: 8)
-                    .padding(.top, 6)
-            } else {
-                Spacer()
-                    .frame(width: 8)
-            }
-            
             VStack(alignment: .leading, spacing: 6) {
                 Text(notification.title)
                     .font(.headline)
                     .foregroundColor(notification.isRead ? .secondary : .primary)
                 
+                // Label badge
+                if notification.isImportant {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                        Text("URGENT")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.red)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.repairedBackground)
+                    .cornerRadius(8)
+                } else if isReservationType {
+                    HStack(spacing: 4) {
+                        Text("Reservation")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.checkInColor)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.checkInBackground)
+                    .cornerRadius(8)
+                }
+                
                 // For reservation/booking notifications, remove check-in/check-out from body
                 // since it's already shown in the ReservationDetailsView bubbles
-                let bodyText = (notification.type.contains("reservation") || 
-                               notification.type.contains("booking") ||
-                               notification.type.contains("guest")) 
+                let bodyText = isReservationType
                     ? removeCheckInCheckOut(from: notification.body) 
                     : notification.body
                 
@@ -288,9 +329,7 @@ struct NotificationCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                 
                 // Special formatting for reservation notifications with check-in/check-out
-                if notification.type.contains("reservation") || 
-                   notification.type.contains("booking") ||
-                   notification.type.contains("guest") {
+                if isReservationType {
                     ReservationDetailsView(notificationBody: notification.body)
                         .padding(.top, 4)
                 }
@@ -299,6 +338,22 @@ struct NotificationCard: View {
             Spacer()
         }
         .padding(.vertical, 8)
+        .padding(.leading, 18)
+        .overlay(alignment: .leading) {
+            let color: Color = indicatorColor
+            if notification.isRead {
+                Capsule(style: .continuous)
+                    .stroke(color.opacity(0.5), lineWidth: 2)
+                    .frame(width: 6)
+                    .padding(.vertical, 12)
+                    .opacity(0.6)
+            } else {
+                Capsule(style: .continuous)
+                    .fill(color)
+                    .frame(width: 6)
+                    .padding(.vertical, 12)
+            }
+        }
         .contentShape(Rectangle())
     }
 }
@@ -311,7 +366,7 @@ struct ReservationDetailsView: View {
         // Format: "New guest at [villa]. Check-in: Aug 22nd at 3:00 PM. Check-out: Aug 29th at 11:00 AM"
         if let checkInInfo = extractDateInfo(from: notificationBody, prefix: "Check-in"),
            let checkOutInfo = extractDateInfo(from: notificationBody, prefix: "Check-out") {
-            HStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Check-in")
                         .font(.caption)

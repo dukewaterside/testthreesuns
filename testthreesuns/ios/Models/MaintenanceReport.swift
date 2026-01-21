@@ -43,10 +43,20 @@ struct MaintenanceReport: Identifiable, Codable {
         
         var color: Color {
             switch self {
-            case .low: return .green
-            case .medium: return .yellow
-            case .high: return .orange
-            case .urgent: return .red
+            case .low: return .checkInColor
+            case .medium: return .checkOutColor
+            case .high: return .repairedColor
+            case .urgent: return .repairedColor
+            }
+        }
+        
+        /// Rank for sorting, with urgent shown first
+        var priorityRank: Int {
+            switch self {
+            case .urgent: return 0
+            case .high: return 1
+            case .medium: return 2
+            case .low: return 3
             }
         }
     }

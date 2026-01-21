@@ -9,15 +9,25 @@ struct CreateMaintenanceReportView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var viewModel = MaintenanceViewModel()
     
+    let showCancelButton: Bool
+    
     @State private var selectedProperty: Property?
     @State private var title = ""
     @State private var description = ""
     @State private var location = ""
     @State private var severity: MaintenanceReport.Severity = .medium
     @State private var reportType: MaintenanceReport.ReportType = .maintenance
-    @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var photoData: [Data] = []
     @State private var isSubmitting = false
+    
+    @State private var showingPhotoSourceDialog = false
+    @State private var showingLibraryPicker = false
+    @State private var showingCameraPicker = false
+    @State private var showingCameraUnavailableAlert = false
+    
+    init(showCancelButton: Bool = true) {
+        self.showCancelButton = showCancelButton
+    }
     
     var body: some View {
         NavigationStack {
@@ -26,7 +36,7 @@ struct CreateMaintenanceReportView: View {
                     Picker("Property", selection: $selectedProperty) {
                         Text("Select property").tag(nil as Property?)
                         ForEach(viewModel.properties) { property in
-                            Text(property.name).tag(property as Property?)
+                            Text(property.displayName).tag(property as Property?)
                         }
                     }
                 }
@@ -50,22 +60,46 @@ struct CreateMaintenanceReportView: View {
                 }
                 
                 Section("Photos") {
-                    PhotosPicker(
-                        selection: $selectedPhotos,
-                        maxSelectionCount: 10,
-                        matching: .images
-                    ) {
+                    Button {
+                        showingPhotoSourceDialog = true
+                    } label: {
                         Label("Add Photos", systemImage: "photo")
                     }
-                    .onChange(of: selectedPhotos) { oldValue, newValue in
-                        Task {
-                            photoData = []
-                            for item in newValue {
-                                if let data = try? await item.loadTransferable(type: Data.self) {
-                                    photoData.append(data)
-                                }
+                    .confirmationDialog("Add Photos", isPresented: $showingPhotoSourceDialog, titleVisibility: .visible) {
+                        Button("Choose from Library") {
+                            showingLibraryPicker = true
+                        }
+                        
+                        Button("Take Photo") {
+                            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                showingCameraPicker = true
+                            } else {
+                                showingCameraUnavailableAlert = true
                             }
                         }
+                        
+                        Button("Cancel", role: .cancel) {}
+                    }
+                    .sheet(isPresented: $showingLibraryPicker) {
+                        PhotoLibraryPicker(isPresented: $showingLibraryPicker, selectionLimit: 10) { selectedData in
+                            // Mirror existing behavior: library selection replaces the current set
+                            photoData = selectedData
+                        }
+                    }
+                    .fullScreenCover(isPresented: $showingCameraPicker) {
+                        ZStack {
+                            Color.black.ignoresSafeArea()
+                            CameraPhotoPicker(isPresented: $showingCameraPicker) { capturedData in
+                                // Camera adds a single photo (up to the same 10 photo limit)
+                                guard photoData.count < 10 else { return }
+                                photoData.append(capturedData)
+                            }
+                        }
+                    }
+                    .alert("Camera Unavailable", isPresented: $showingCameraUnavailableAlert) {
+                        Button("OK", role: .cancel) {}
+                    } message: {
+                        Text("This device doesn’t have a camera available.")
                     }
                     
                     if !photoData.isEmpty {
@@ -105,8 +139,10 @@ struct CreateMaintenanceReportView: View {
             .navigationTitle("New Report")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                if showCancelButton {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
                 }
             }
             .task {
@@ -181,6 +217,117 @@ struct CreateMaintenanceReportView: View {
             await MainActor.run {
                 isSubmitting = false
             }
+        }
+    }
+}
+
+private struct PhotoLibraryPicker: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    let selectionLimit: Int
+    let onComplete: ([Data]) -> Void
+    
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.filter = .images
+        config.selectionLimit = selectionLimit
+        
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isPresented: $isPresented, onComplete: onComplete)
+    }
+    
+    final class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        @Binding private var isPresented: Bool
+        private let onComplete: ([Data]) -> Void
+        
+        init(isPresented: Binding<Bool>, onComplete: @escaping ([Data]) -> Void) {
+            _isPresented = isPresented
+            self.onComplete = onComplete
+        }
+        
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            isPresented = false
+            guard !results.isEmpty else {
+                onComplete([])
+                return
+            }
+            
+            let group = DispatchGroup()
+            var dataByIndex = Array<Data?>(repeating: nil, count: results.count)
+            
+            for (index, result) in results.enumerated() {
+                let provider = result.itemProvider
+                guard provider.canLoadObject(ofClass: UIImage.self) else { continue }
+                
+                group.enter()
+                provider.loadObject(ofClass: UIImage.self) { object, _ in
+                    defer { group.leave() }
+                    guard let image = object as? UIImage else { return }
+                    
+                    // Normalize to JPEG so the uploaded .jpg extension is correct
+                    if let jpeg = image.jpegData(compressionQuality: 0.85) {
+                        dataByIndex[index] = jpeg
+                    } else if let png = image.pngData() {
+                        dataByIndex[index] = png
+                    }
+                }
+            }
+            
+            group.notify(queue: .main) {
+                self.onComplete(dataByIndex.compactMap { $0 })
+            }
+        }
+    }
+}
+
+private struct CameraPhotoPicker: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    let onPhoto: (Data) -> Void
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.cameraCaptureMode = .photo
+        picker.cameraDevice = .rear
+        picker.view.backgroundColor = .black
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isPresented: $isPresented, onPhoto: onPhoto)
+    }
+    
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        @Binding private var isPresented: Bool
+        private let onPhoto: (Data) -> Void
+        
+        init(isPresented: Binding<Bool>, onPhoto: @escaping (Data) -> Void) {
+            _isPresented = isPresented
+            self.onPhoto = onPhoto
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            isPresented = false
+            guard let image = (info[.editedImage] ?? info[.originalImage]) as? UIImage else { return }
+            
+            if let jpeg = image.jpegData(compressionQuality: 0.85) {
+                onPhoto(jpeg)
+            } else if let png = image.pngData() {
+                onPhoto(png)
+            }
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            isPresented = false
         }
     }
 }

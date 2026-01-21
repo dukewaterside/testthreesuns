@@ -36,6 +36,42 @@ struct AppNotification: Identifiable, Codable {
         sentAt = try container.decode(Date.self, forKey: .sentAt)
         isImportant = try container.decodeIfPresent(Bool.self, forKey: .isImportant) ?? false
     }
+
+    init(
+        id: UUID,
+        userId: UUID,
+        title: String,
+        body: String,
+        type: String,
+        relatedId: UUID?,
+        isRead: Bool,
+        sentAt: Date,
+        isImportant: Bool
+    ) {
+        self.id = id
+        self.userId = userId
+        self.title = title
+        self.body = body
+        self.type = type
+        self.relatedId = relatedId
+        self.isRead = isRead
+        self.sentAt = sentAt
+        self.isImportant = isImportant
+    }
+
+    func with(isRead: Bool) -> AppNotification {
+        AppNotification(
+            id: id,
+            userId: userId,
+            title: title,
+            body: body,
+            type: type,
+            relatedId: relatedId,
+            isRead: isRead,
+            sentAt: sentAt,
+            isImportant: isImportant
+        )
+    }
     
     // EST timezone for all date formatting
     private var estTimeZone: TimeZone {

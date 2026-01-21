@@ -13,9 +13,12 @@ struct MaintenanceChecklistView: View {
     @State private var isLoading = false
     @State private var completedItems: [String: Bool] = [:]
     @State private var items: [String: Bool] = [:]
+    @State private var initialItems: [String: Bool] = [:]
     @State private var propertyStatus: Checklist.PropertyStatus = .ready
+    @State private var initialPropertyStatus: Checklist.PropertyStatus = .ready
     @State private var isSubmitting = false
     @State private var showSuccessAlert = false
+    @State private var showCancelConfirmation = false
     
     // Maintenance checklist structure
     private let maintenanceSections: [MaintenanceSection] = [
@@ -35,6 +38,10 @@ struct MaintenanceChecklistView: View {
     
     var allSelected: Bool {
         !items.isEmpty && items.values.allSatisfy { $0 }
+    }
+    
+    private var hasUnsavedChanges: Bool {
+        items != initialItems || propertyStatus != initialPropertyStatus
     }
     
     enum PresentedSheet: Identifiable {
@@ -163,6 +170,13 @@ struct MaintenanceChecklistView: View {
         }
         .navigationTitle("Maintenance Checklist")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    handleCancel()
+                }
+            }
+        }
         .sheet(item: $presentedSheet) { sheet in
             Group {
                 switch sheet {
@@ -198,6 +212,14 @@ struct MaintenanceChecklistView: View {
         .refreshable {
             await loadTasks()
         }
+        .alert("Discard changes?", isPresented: $showCancelConfirmation) {
+            Button("Keep Editing", role: .cancel) { }
+            Button("Discard Changes", role: .destructive) {
+                dismiss()
+            }
+        } message: {
+            Text("You have checklist items marked off or status changes. Are you sure you want to discard your changes?")
+        }
     }
     
     private func loadItems() {
@@ -214,6 +236,8 @@ struct MaintenanceChecklistView: View {
             }
         }
         items = allItems
+        initialItems = allItems
+        initialPropertyStatus = propertyStatus
     }
     
     private func submitChecklist() {
@@ -245,6 +269,14 @@ struct MaintenanceChecklistView: View {
                     isSubmitting = false
                 }
             }
+        }
+    }
+    
+    private func handleCancel() {
+        if hasUnsavedChanges {
+            showCancelConfirmation = true
+        } else {
+            dismiss()
         }
     }
     
